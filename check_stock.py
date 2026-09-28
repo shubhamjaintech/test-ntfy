@@ -1,7 +1,6 @@
-import json
+
 import os
 import sys
-
 import requests
 
 
@@ -20,7 +19,7 @@ PRODUCT_URL = (
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh")
 
-STATE_FILE = "stock_state.json"
+STATE_FILE = "state.txt"
 
 
 def get_product():
@@ -52,7 +51,6 @@ def get_product():
 
     product = products[0]
 
-    # Safety check: make sure Amul returned the product we requested.
     if product.get("alias") != PRODUCT_ALIAS:
         raise RuntimeError(
             f"Unexpected product returned: {product.get('alias')}"
@@ -63,10 +61,10 @@ def get_product():
 
 def stock_status(product):
     """
-    Amul's `available` field is the primary stock signal.
+    Amul's `available` field is the stock signal.
 
-    available = 1 -> available for purchase
-    available = 0 -> unavailable
+    available = 1 -> in stock
+    available = 0 -> out of stock
     """
 
     available = product.get("available")
@@ -83,30 +81,28 @@ def stock_status(product):
 
 
 def load_previous_state():
-    """Read the previous stock state."""
+    """Read the previous stock state from state.txt."""
 
     if not os.path.exists(STATE_FILE):
         return None
 
-    try:
-        with open(STATE_FILE, "r", encoding="utf-8") as file:
-            state = json.load(file)
+    with open(STATE_FILE, "r", encoding="utf-8") as file:
+        value = file.read().strip()
 
-        return state.get("in_stock")
+    if value == "1":
+        return True
 
-    except (OSError, json.JSONDecodeError):
-        return None
+    if value == "0":
+        return False
+
+    return None
 
 
 def save_state(in_stock):
-    """Save the current stock state."""
+    """Save current stock state to state.txt."""
 
     with open(STATE_FILE, "w", encoding="utf-8") as file:
-        json.dump(
-            {"in_stock": in_stock},
-            file,
-            indent=2,
-        )
+        file.write("1" if in_stock else "0")
 
 
 def send_ntfy(product):
@@ -160,7 +156,8 @@ def main():
             f"Current state: {in_stock}"
         )
 
-        # Notify only when product changes from OUT OF STOCK -> IN STOCK.
+        # Notify only when stock changes:
+        # OUT OF STOCK -> IN STOCK
         if in_stock and previous_state is not True:
             print("🚨 PRODUCT JUST CAME IN STOCK")
 
@@ -174,6 +171,8 @@ def main():
         else:
             print("❌ Product is out of stock")
 
+        # Always update state so the next GitHub Action knows
+        # what the previous stock status was.
         save_state(in_stock)
 
         return 0
@@ -189,3 +188,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
