@@ -22,19 +22,19 @@ def fetch():
 
 
 def stock_status(html):
-    # Make sure we're checking the correct product
-    if "Amul Chocolate Whey Protein, 34 g | Pack of 60 sachets" not in html:
-        raise RuntimeError("Expected Amul product not found")
+    # The URL is already specific to the product.
+    # Only inspect the stock status returned by Amul.
 
-    # Amul currently exposes the stock state as "In Stock" / "Out of Stock".
     if re.search(r"\bOut\s+of\s+Stock\b", html, re.I):
         return False
 
     if re.search(r"\bIn\s+Stock\b", html, re.I):
         return True
 
-    raise RuntimeError("Could not determine Amul stock status")
-
+    raise RuntimeError(
+        "Could not determine stock status. "
+        "Neither 'In Stock' nor 'Out of Stock' was found."
+    )
 
 def notify():
     topic = os.environ["NTFY_TOPIC"]
